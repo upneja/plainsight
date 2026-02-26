@@ -7,7 +7,6 @@ const anthropic = new Anthropic({
 })
 
 export async function analyzeContract(contractText: string, fileName: string): Promise<ScanResult> {
-  // Truncate very long documents
   const truncated = contractText.length > 200000
     ? contractText.slice(0, 200000) + '\n\n[Document truncated for analysis]'
     : contractText
@@ -23,17 +22,28 @@ export async function analyzeContract(contractText: string, fileName: string): P
         messages: [{ role: 'user', content: `Analyze this contract:\n\n${truncated}` }],
       })
 
-      const text = response.content[0].type === 'text' ? response.content[0].text : ''
-      const parsed = JSON.parse(text)
+      const block = response.content[0]
+      if (block.type !== 'text') {
+        throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(block.text)
+      } catch {
+        throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
+      }
 
       return {
         id: crypto.randomUUID(),
         file_name: fileName,
         created_at: new Date().toISOString(),
-        ...parsed,
+        ...(parsed as object),
       } as ScanResult
     } catch (err) {
-      lastError = err as Error
+      const error = err as Error & { nonRetryable?: boolean }
+      if (error.nonRetryable) throw error
+      lastError = error
       if (attempt < 2) {
         await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
       }
