@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return NextResponse.json({ error: 'NO_FILE' }, { status: 400 })
     }
 
     if (file.size > 10 * 1024 * 1024) {

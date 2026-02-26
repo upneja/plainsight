@@ -1,4 +1,5 @@
 import type { ScanResult } from './types'
+import { DEMO_SCAN } from './demo-data'
 
 // In-memory store — resets on server restart. Fine for MVP.
 const store = new Map<string, ScanResult>()
@@ -8,10 +9,6 @@ export function saveScan(scan: ScanResult): void {
 }
 
 export function getScan(id: string): ScanResult | null {
-  if (id === 'demo') {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { DEMO_SCAN } = require('./demo-data')
-    return DEMO_SCAN as ScanResult
-  }
+  if (id === 'demo') return DEMO_SCAN
   return store.get(id) ?? null
 }
