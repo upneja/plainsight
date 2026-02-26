@@ -1,26 +1,42 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-bg-primary: #FAFAF9;
+  --color-bg-secondary: #F5F4F0;
+  --color-bg-document: #FFFFFF;
+  --color-text-primary: #1C1917;
+  --color-text-secondary: #57534E;
+  --color-text-muted: #A8A29E;
+  --color-border: #E7E5E4;
+
+  --color-risk-green: #16A34A;
+  --color-risk-green-bg: #F0FDF4;
+  --color-risk-yellow: #CA8A04;
+  --color-risk-yellow-bg: #FEFCE8;
+  --color-risk-red: #DC2626;
+  --color-risk-red-bg: #FEF2F2;
+
+  --color-grade-a: #16A34A;
+  --color-grade-b: #0D9488;
+  --color-grade-c: #CA8A04;
+  --color-grade-d: #EA580C;
+  --color-grade-f: #DC2626;
+
+  --color-accent: #2563EB;
+  --color-accent-light: #EFF6FF;
+
+  --color-ghost: #7C3AED;
+  --color-ghost-bg: #F5F3FF;
+
+  --font-family-sans: 'DM Sans', sans-serif;
+  --font-family-serif: 'Fraunces', serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
