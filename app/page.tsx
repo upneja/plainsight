@@ -86,9 +86,9 @@ export default function Home() {
           <strong className="text-text-secondary">Legal Disclaimer:</strong> PlainSight provides legal information for educational purposes. It is not a law firm and does not provide legal advice. Always consult a licensed attorney for legal advice specific to your situation.
         </p>
         <div className="mt-4 flex items-center justify-center gap-6 text-xs text-text-muted">
-          <a href="#" className="hover:text-text-secondary">Privacy</a>
-          <a href="#" className="hover:text-text-secondary">Terms</a>
-          <a href="#" className="hover:text-text-secondary">Contact</a>
+          <span className="text-text-muted">Privacy</span>
+          <span className="text-text-muted">Terms</span>
+          <span className="text-text-muted">Contact</span>
         </div>
       </footer>
     </main>

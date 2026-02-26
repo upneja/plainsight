@@ -56,21 +56,33 @@ export function FileDropzone() {
     const formData = new FormData()
     formData.append('file', file)
 
-    const res = await fetch('/api/scan', { method: 'POST', body: formData })
-    const data = await res.json()
+    try {
+      const res = await fetch('/api/scan', { method: 'POST', body: formData })
+      let data: { id?: string; error?: string }
+      try {
+        data = await res.json()
+      } catch {
+        setErrorCode('DEFAULT')
+        setStage('error')
+        return
+      }
 
-    if (!res.ok) {
-      setErrorCode(data.error ?? 'DEFAULT')
+      if (!res.ok) {
+        setErrorCode(data.error ?? 'DEFAULT')
+        setStage('error')
+        return
+      }
+
+      setStage('checking')
+      await new Promise(r => setTimeout(r, 500))
+      setStage('building')
+      await new Promise(r => setTimeout(r, 500))
+
+      router.push(`/scan/${data.id}`)
+    } catch {
+      setErrorCode('DEFAULT')
       setStage('error')
-      return
     }
-
-    setStage('checking')
-    await new Promise(r => setTimeout(r, 500))
-    setStage('building')
-    await new Promise(r => setTimeout(r, 500))
-
-    router.push(`/scan/${data.id}`)
   }, [router])
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -107,7 +119,10 @@ export function FileDropzone() {
             <div className="text-4xl animate-pulse">📄</div>
             <p className="text-text-secondary font-medium">{STAGE_MESSAGES[stage]}</p>
             <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
-              <div className="h-full bg-accent rounded-full w-3/5 animate-pulse" />
+              <div
+                className="h-full bg-accent rounded-full transition-all duration-700"
+                style={{ width: stage === 'extracting' ? '25%' : stage === 'analyzing' ? '55%' : stage === 'checking' ? '80%' : '95%' }}
+              />
             </div>
           </div>
         ) : (
