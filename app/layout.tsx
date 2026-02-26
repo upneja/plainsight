@@ -3,6 +3,7 @@ import './globals.css'
 import { fraunces, dmSans, jetbrainsMono } from './fonts'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
   title: "PlainSight — See what you're really signing",
   description: "Upload any contract. Get instant plain English translation, risk scoring, and what's missing — in seconds.",
 }

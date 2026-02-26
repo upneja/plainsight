@@ -3,6 +3,15 @@ import { ScanResult } from '@/lib/types'
 import { GradeBadge } from '@/components/GradeBadge'
 import { RiskMeter } from '@/components/RiskMeter'
 
+const CONTRACT_LABELS: Record<string, string> = {
+  lease: 'Lease',
+  employment: 'Employment',
+  nda: 'NDA',
+  freelancer: 'Freelancer',
+  tos: 'Terms of Service',
+  other: 'Contract',
+}
+
 export function OverviewTab({ scan }: { scan: ScanResult }) {
   const total = scan.clauses.length
   const red = scan.clauses.filter(c => c.risk_level === 'red').length
@@ -17,7 +26,7 @@ export function OverviewTab({ scan }: { scan: ScanResult }) {
           <div>
             <h2 className="font-serif text-2xl font-bold mb-1">Summary</h2>
             <p className="text-text-secondary text-sm capitalize">
-              {scan.contract_type === 'tos' ? 'Terms of Service' : scan.contract_type} · {scan.jurisdiction}
+              {CONTRACT_LABELS[scan.contract_type] ?? scan.contract_type} · {scan.jurisdiction}
             </p>
           </div>
           <GradeBadge grade={scan.overall_grade} size="lg" />

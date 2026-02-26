@@ -16,7 +16,7 @@ const STAGE_MESSAGES: Record<Stage, string> = {
 const ERROR_MESSAGES: Record<string, string> = {
   FILE_TOO_LARGE: 'This file is too large. Please upload a file under 10MB.',
   PDF_UNREADABLE: "We couldn't read this PDF. It may be a scanned image without text. Try a text-based PDF or .txt file.",
-  UNSUPPORTED_FORMAT: 'Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.',
+  UNSUPPORTED_FORMAT: 'Unsupported file type. Please upload a PDF or TXT file.',
   DOCUMENT_TOO_SHORT: "This document seems too short to be a contract. Please upload the full agreement.",
   ANALYSIS_FAILED: 'Our analysis engine is temporarily unavailable. Please try again in a few minutes.',
   DEFAULT: 'Something went wrong. Please try again.',
@@ -34,8 +34,6 @@ export function FileDropzone() {
     const allowed = [
       'application/pdf',
       'text/plain',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ]
     if (!allowed.includes(file.type)) {
       setErrorCode('UNSUPPORTED_FORMAT')
@@ -109,7 +107,7 @@ export function FileDropzone() {
         <input
           type="file"
           className="sr-only"
-          accept=".pdf,.txt,.doc,.docx"
+          accept=".pdf,.txt"
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
           disabled={isLoading}
         />
@@ -129,7 +127,7 @@ export function FileDropzone() {
           <div className="space-y-3">
             <div className="text-5xl">📋</div>
             <p className="text-xl font-medium text-text-primary">Drop your contract here</p>
-            <p className="text-text-muted text-sm">PDF, DOC, DOCX, or TXT · Max 10MB</p>
+            <p className="text-text-muted text-sm">PDF or TXT · Max 10MB</p>
             <span className="inline-block mt-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium">
               Browse files
             </span>

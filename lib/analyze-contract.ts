@@ -6,6 +6,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
+function assertValidScanPayload(obj: unknown): void {
+  if (!obj || typeof obj !== 'object') {
+    throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
+  }
+  const o = obj as Record<string, unknown>
+  if (!Array.isArray(o.clauses) || !Array.isArray(o.ghost_clauses) || !Array.isArray(o.timeline_events)) {
+    throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
+  }
+  if (!['A', 'B', 'C', 'D', 'F'].includes(o.overall_grade as string)) {
+    throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
+  }
+}
+
 export async function analyzeContract(contractText: string, fileName: string): Promise<ScanResult> {
   const truncated = contractText.length > 200000
     ? contractText.slice(0, 200000) + '\n\n[Document truncated for analysis]'
@@ -33,6 +46,8 @@ export async function analyzeContract(contractText: string, fileName: string): P
       } catch {
         throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
       }
+
+      assertValidScanPayload(parsed)
 
       return {
         id: crypto.randomUUID(),

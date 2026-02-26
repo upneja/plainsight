@@ -4,13 +4,22 @@ import { getScan } from '@/lib/scan-store'
 import { GradeBadge } from '@/components/GradeBadge'
 import type { Metadata } from 'next'
 
+const CONTRACT_LABELS: Record<string, string> = {
+  lease: 'Lease',
+  employment: 'Employment',
+  nda: 'NDA',
+  freelancer: 'Freelancer',
+  tos: 'Terms of Service',
+  other: 'Contract',
+}
+
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Metadata> {
   const { id } = await params
   const scan = getScan(id)
   if (!scan) return {}
-  const contractLabel = scan.contract_type === 'tos' ? 'Terms of Service' : scan.contract_type
+  const contractLabel = CONTRACT_LABELS[scan.contract_type] ?? scan.contract_type
   return {
     title: `My ${contractLabel} contract: Grade ${scan.overall_grade} | PlainSight`,
     description: scan.tldr_summary,
@@ -34,7 +43,7 @@ export default async function SharePage(
   const scan = getScan(id)
   if (!scan) return notFound()
 
-  const contractLabel = scan.contract_type === 'tos' ? 'Terms of Service' : scan.contract_type
+  const contractLabel = CONTRACT_LABELS[scan.contract_type] ?? scan.contract_type
 
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center p-6">

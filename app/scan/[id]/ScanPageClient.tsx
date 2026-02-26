@@ -13,6 +13,15 @@ import { TimelineTab } from './tabs/TimelineTab'
 
 type Tab = 'overview' | 'clauses' | 'ghosts' | 'timeline'
 
+const CONTRACT_LABELS: Record<string, string> = {
+  lease: 'Lease',
+  employment: 'Employment',
+  nda: 'NDA',
+  freelancer: 'Freelancer',
+  tos: 'Terms of Service',
+  other: 'Contract',
+}
+
 export function ScanPageClient({ scan }: { scan: ScanResult }) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
 
@@ -30,7 +39,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
             <span className="text-text-muted shrink-0">/</span>
             <span className="text-sm text-text-secondary truncate">{scan.file_name}</span>
             <span className="px-2 py-0.5 bg-accent-light text-accent text-xs rounded-full font-medium capitalize shrink-0">
-              {scan.contract_type === 'tos' ? 'Terms of Service' : scan.contract_type}
+              {CONTRACT_LABELS[scan.contract_type] ?? scan.contract_type}
             </span>
           </div>
           <div className="flex items-center gap-3 shrink-0">

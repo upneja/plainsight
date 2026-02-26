@@ -47,7 +47,7 @@ function ClauseCard({ clause }: { clause: ClauseAnalysis }) {
           {/* Risk */}
           <div className="flex items-center gap-3">
             <RiskBadge level={clause.risk_level} />
-            <span className="text-xs text-text-muted">Risk score: {clause.risk_score}/100</span>
+            <span className="text-xs text-text-muted">Risk score: {Math.min(100, Math.max(0, clause.risk_score))}/100</span>
           </div>
 
           {/* Benchmark */}
