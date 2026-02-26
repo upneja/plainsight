@@ -20,7 +20,8 @@ function generateICS(event: TimelineEvent): string {
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `SUMMARY:${event.label}`,
-    dtstart ? `DTSTART:${dtstart}` : '',
+    dtstart ? `DTSTART;VALUE=DATE:${dtstart}` : '',
+    dtstart ? `DTEND;VALUE=DATE:${dtstart}` : '',
     `DESCRIPTION:${event.notes ?? ''}`,
     'END:VEVENT',
     'END:VCALENDAR',
@@ -33,7 +34,9 @@ function downloadICS(event: TimelineEvent) {
   const a = document.createElement('a')
   a.href = url
   a.download = `${event.label.replace(/\s+/g, '-')}.ics`
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 

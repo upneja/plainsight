@@ -63,10 +63,16 @@ function ClauseCard({ clause }: { clause: ClauseAnalysis }) {
             <div className={`rounded-lg p-3 ${
               clause.risk_level === 'red'
                 ? 'bg-risk-red-bg border border-risk-red/20'
-                : 'bg-risk-yellow-bg border border-risk-yellow/20'
+                : clause.risk_level === 'yellow'
+                ? 'bg-risk-yellow-bg border border-risk-yellow/20'
+                : 'bg-bg-secondary border border-border'
             }`}>
               <p className={`text-xs font-semibold mb-1 ${
-                clause.risk_level === 'red' ? 'text-risk-red' : 'text-risk-yellow'
+                clause.risk_level === 'red'
+                  ? 'text-risk-red'
+                  : clause.risk_level === 'yellow'
+                  ? 'text-risk-yellow'
+                  : 'text-text-secondary'
               }`}>
                 ⚠ Watch out
               </p>
