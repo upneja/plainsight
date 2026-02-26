@@ -1,7 +1,8 @@
 export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   if (mimeType === 'application/pdf') {
-    const pdf = (await import('pdf-parse')).default
-    const data = await pdf(buffer)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfParse = (await import('pdf-parse')) as any
+    const data = await (pdfParse.default ?? pdfParse)(buffer)
     if (!data.text || data.text.trim().length < 100) {
       throw new Error('PDF_UNREADABLE')
     }
