@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { fraunces, dmSans, jetbrainsMono } from './fonts'
 
 export const metadata: Metadata = {
   title: "PlainSight — See what you're really signing",
@@ -8,13 +9,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-screen antialiased">
         {children}
       </body>
