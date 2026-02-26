@@ -1,7 +1,7 @@
 'use client'
 import { RiskLevel } from '@/lib/types'
 
-const config = {
+const config: Record<RiskLevel, { bg: string; text: string; dot: string; label: string }> = {
   green: { bg: 'bg-risk-green-bg', text: 'text-risk-green', dot: 'bg-risk-green', label: 'Low Risk' },
   yellow: { bg: 'bg-risk-yellow-bg', text: 'text-risk-yellow', dot: 'bg-risk-yellow', label: 'Medium Risk' },
   red: { bg: 'bg-risk-red-bg', text: 'text-risk-red', dot: 'bg-risk-red', label: 'High Risk' },
