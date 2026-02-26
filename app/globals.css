@@ -28,9 +28,6 @@
   --color-ghost: #7C3AED;
   --color-ghost-bg: #F5F3FF;
 
-  --font-family-sans: 'DM Sans', sans-serif;
-  --font-family-serif: 'Fraunces', serif;
-  --font-family-mono: 'JetBrains Mono', monospace;
 }
 
 @layer base {
