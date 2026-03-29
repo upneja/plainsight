@@ -1,3 +1,272 @@
+# Email Draft + UX Redesign Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Add a one-click email draft feature and overhaul the scan results page from a tabbed layout to a single-scroll, action-first design with per-clause checkboxes.
+
+**Architecture:** Three tasks: (1) new `/api/email` endpoint calling Claude with selected clause/ghost data, (2) `EmailModal` component for the generated draft, (3) full rewrite of `ScanPageClient.tsx` eliminating tabs in favor of a single scrollable page with sections, per-item checkboxes, and a sticky "Draft Email" action bar. The three now-orphaned tab files (OverviewTab, ClausesTab, GhostTab) get deleted; `TimelineTab.tsx` is kept.
+
+**Tech Stack:** Next.js 16 App Router, TypeScript, Tailwind v4 (`@theme` in `app/globals.css` — no `tailwind.config.ts`), Anthropic SDK (`@anthropic-ai/sdk`), model `claude-sonnet-4-5-20250929`
+
+---
+
+### Task 1: Email API Endpoint
+
+**Files:**
+- Create: `app/api/email/route.ts`
+
+**Context:** Pattern-match the existing `app/api/scan/route.ts` for Anthropic client setup. The endpoint receives full clause/ghost objects (not IDs) so it doesn't need to look up the scan store. `maxDuration = 30` keeps it within Vercel limits.
+
+**Step 1: Create `app/api/email/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+import type { ClauseAnalysis, GhostClause } from '@/lib/types'
+
+const client = new Anthropic()
+
+export const maxDuration = 30
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { selectedClauses, selectedGhosts, scan } = body as {
+      selectedClauses: ClauseAnalysis[]
+      selectedGhosts: GhostClause[]
+      scan: {
+        contract_type: string
+        detected_party_side: string
+        jurisdiction: string
+      }
+    }
+
+    if (!selectedClauses?.length && !selectedGhosts?.length) {
+      return NextResponse.json({ error: 'NO_ITEMS_SELECTED' }, { status: 400 })
+    }
+
+    const clauseLines = selectedClauses.map((c, i) =>
+      `${i + 1}. [${c.category.replace(/_/g, ' ')}]\n   Plain English: ${c.plain_english}\n   Concern: ${c.concern ?? 'N/A'}\n   Suggested language: ${c.negotiation_ammo ?? 'N/A'}`
+    ).join('\n\n')
+
+    const ghostLines = selectedGhosts.map((g, i) =>
+      `${i + 1}. Missing: ${g.title}\n   Why it matters: ${g.why_it_matters}\n   Standard version: ${g.standard_version}`
+    ).join('\n\n')
+
+    const prompt = `You are helping a ${scan.detected_party_side} write a professional negotiation email about their ${scan.contract_type} contract${scan.jurisdiction !== 'Not specified' ? ` in ${scan.jurisdiction}` : ''}.
+
+${clauseLines ? `CLAUSES TO ADDRESS:\n${clauseLines}` : ''}${ghostLines ? `\n\nMISSING PROTECTIONS TO REQUEST:\n${ghostLines}` : ''}
+
+Write a single professional email that:
+- Opens with a brief, friendly intro referencing reviewing the contract
+- Addresses each issue clearly and concisely (be direct, don't repeat every detail)
+- Frames each request as a polite question or suggestion, not a demand
+- Groups related issues where possible
+- Closes professionally
+- Is 200-400 words total
+- Does NOT include a subject line
+
+Return ONLY the email body text, starting from the salutation (e.g. "Hi [Name],").`
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const content = response.content[0]
+    if (content.type !== 'text') {
+      return NextResponse.json({ error: 'GENERATION_FAILED' }, { status: 500 })
+    }
+
+    return NextResponse.json({ email: content.text })
+  } catch (err) {
+    console.error('Email generation error:', err)
+    return NextResponse.json({ error: 'GENERATION_FAILED' }, { status: 500 })
+  }
+}
+```
+
+**Step 2: Verify no type errors**
+
+Run: `npx tsc --noEmit`
+Expected: No errors
+
+**Step 3: Manual smoke test**
+
+With `npm run dev` running, test with curl:
+```bash
+curl -s -X POST http://localhost:3000/api/email \
+  -H "Content-Type: application/json" \
+  -d '{"selectedClauses":[{"id":"c1","category":"entry_access","plain_english":"Landlord can enter any time without notice","concern":"No notice requirement","negotiation_ammo":"Would you add a 24-hour notice requirement?","original_text":"Landlord may enter at any time.","risk_level":"red","risk_score":85,"benchmark_note":null}],"selectedGhosts":[],"scan":{"contract_type":"lease","detected_party_side":"tenant","jurisdiction":"California"}}' | python3 -m json.tool
+```
+Expected: JSON with `{ "email": "Hi [Name],\n..." }` containing a real draft
+
+---
+
+### Task 2: EmailModal Component
+
+**Files:**
+- Create: `components/EmailModal.tsx`
+
+**Context:** `CopyButton` is at `components/CopyButton.tsx` — import and reuse it. The modal fetches on mount and handles loading/error/done states. A `retryCount` state lets the user retry without reopening the modal.
+
+**Step 1: Create `components/EmailModal.tsx`**
+
+```typescript
+'use client'
+import { useState, useEffect } from 'react'
+import type { ClauseAnalysis, GhostClause, ScanResult } from '@/lib/types'
+import { CopyButton } from '@/components/CopyButton'
+
+type Props = {
+  selectedClauses: ClauseAnalysis[]
+  selectedGhosts: GhostClause[]
+  scan: ScanResult
+  onClose: () => void
+}
+
+export function EmailModal({ selectedClauses, selectedGhosts, scan, onClose }: Props) {
+  const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading')
+  const [email, setEmail] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
+  const totalSelected = selectedClauses.length + selectedGhosts.length
+
+  useEffect(() => {
+    let cancelled = false
+    setStatus('loading')
+    setEmail('')
+
+    async function generate() {
+      try {
+        const res = await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            selectedClauses,
+            selectedGhosts,
+            scan: {
+              contract_type: scan.contract_type,
+              detected_party_side: scan.detected_party_side,
+              jurisdiction: scan.jurisdiction,
+            },
+          }),
+        })
+        if (!res.ok) throw new Error('Failed')
+        const data = await res.json()
+        if (!cancelled) {
+          setEmail(data.email)
+          setStatus('done')
+        }
+      } catch {
+        if (!cancelled) setStatus('error')
+      }
+    }
+
+    generate()
+    return () => { cancelled = true }
+  }, [retryCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleBackdrop = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div className="bg-bg-document border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="font-semibold text-text-primary">✉ Negotiation Email Draft</h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              {totalSelected} issue{totalSelected !== 1 ? 's' : ''} addressed
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-secondary text-text-muted hover:text-text-primary transition-colors text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {status === 'loading' && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="text-4xl animate-pulse">✉</div>
+              <p className="text-text-secondary text-sm">Drafting your negotiation email...</p>
+              <p className="text-text-muted text-xs">This takes about 5 seconds</p>
+            </div>
+          )}
+          {status === 'error' && (
+            <div className="text-center py-16">
+              <p className="text-risk-red text-sm mb-3">Something went wrong generating the email.</p>
+              <button
+                onClick={() => setRetryCount(c => c + 1)}
+                className="text-xs text-accent hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+          {status === 'done' && (
+            <pre className="font-sans text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+              {email}
+            </pre>
+          )}
+        </div>
+
+        {/* Footer */}
+        {status === 'done' && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-secondary rounded-b-2xl">
+            <p className="text-xs text-text-muted">Review and personalize before sending</p>
+            <CopyButton text={email} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+```
+
+**Step 2: Verify no type errors**
+
+Run: `npx tsc --noEmit`
+Expected: No errors
+
+---
+
+### Task 3: Rewrite ScanPageClient — Single Scroll + Checkboxes + Sticky Bar
+
+**Files:**
+- Modify: `app/scan/[id]/ScanPageClient.tsx` (full replacement)
+- Delete: `app/scan/[id]/tabs/OverviewTab.tsx`
+- Delete: `app/scan/[id]/tabs/ClausesTab.tsx`
+- Delete: `app/scan/[id]/tabs/GhostTab.tsx`
+- Keep: `app/scan/[id]/tabs/TimelineTab.tsx` (still imported and used)
+
+**Context:**
+- Tailwind v4 — all color tokens defined in `app/globals.css` `@theme` block. Use classes like `text-risk-red`, `bg-ghost-bg`, `border-ghost/40`, `bg-accent-light`, etc.
+- `GradeBadge` sizes: `sm | md | lg`. Use `lg` in hero.
+- `RiskMeter` takes `score: number` (0–100).
+- `TimelineTab` takes `{ events: TimelineEvent[] }`.
+- The `pb-32` on the content container ensures content isn't hidden under the sticky bar.
+
+**Step 1: Delete the three obsolete tab files**
+
+```bash
+rm app/scan/[id]/tabs/OverviewTab.tsx
+rm app/scan/[id]/tabs/ClausesTab.tsx
+rm app/scan/[id]/tabs/GhostTab.tsx
+```
+
+**Step 2: Replace `app/scan/[id]/ScanPageClient.tsx` entirely**
+
+```typescript
 'use client'
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
@@ -22,7 +291,7 @@ const CONTRACT_LABELS: Record<string, string> = {
 function ClauseCard({ clause, selected, onToggle }: {
   clause: ClauseAnalysis
   selected: boolean
-  onToggle: (id: string) => void
+  onToggle: () => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -42,13 +311,12 @@ function ClauseCard({ clause, selected, onToggle }: {
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onToggle(clause.id)}
+          onChange={onToggle}
           className="w-4 h-4 rounded border-border accent-accent shrink-0 cursor-pointer"
           aria-label={`Select: ${clause.plain_english}`}
         />
         <button
           onClick={() => setOpen(!open)}
-          aria-expanded={open}
           className="flex items-center gap-3 flex-1 text-left min-w-0"
         >
           <RiskBadge level={clause.risk_level} showLabel={false} />
@@ -118,7 +386,7 @@ function ClauseCard({ clause, selected, onToggle }: {
 function GhostCard({ ghost, selected, onToggle }: {
   ghost: GhostClause
   selected: boolean
-  onToggle: (id: string) => void
+  onToggle: () => void
 }) {
   const severityConfig: Record<GhostSeverity, { label: string; color: string }> = {
     high: { label: 'High Priority', color: 'text-risk-red bg-risk-red-bg border-risk-red/20' },
@@ -133,7 +401,7 @@ function GhostCard({ ghost, selected, onToggle }: {
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onToggle(ghost.id)}
+          onChange={onToggle}
           className="w-4 h-4 mt-0.5 rounded border-border accent-accent shrink-0 cursor-pointer"
           aria-label={`Select missing clause: ${ghost.title}`}
         />
@@ -168,15 +436,11 @@ function Section({ title, count, colorClass, children, defaultOpen = true }: {
   defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  const contentId = `section-${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`
   return (
     <div className="border-t border-border">
       <button
-        type="button"
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between py-4"
-        aria-expanded={open}
-        aria-controls={contentId}
       >
         <div className="flex items-center gap-3">
           <h2 className={`font-semibold text-lg ${colorClass}`}>{title}</h2>
@@ -186,7 +450,7 @@ function Section({ title, count, colorClass, children, defaultOpen = true }: {
         </div>
         <span className="text-text-muted text-sm">{open ? '▲' : '▼'}</span>
       </button>
-      {open && <div id={contentId} className="space-y-3 pb-8">{children}</div>}
+      {open && <div className="space-y-3 pb-8">{children}</div>}
     </div>
   )
 }
@@ -311,7 +575,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
             <h2 className="font-semibold text-lg mb-4">Top Concerns</h2>
             <div className="space-y-3">
               {scan.top_concerns.map((concern, i) => (
-                <div key={concern} className="flex gap-3 bg-risk-red-bg border border-risk-red/20 rounded-xl p-4">
+                <div key={i} className="flex gap-3 bg-risk-red-bg border border-risk-red/20 rounded-xl p-4">
                   <span className="text-risk-red font-bold text-sm mt-0.5 shrink-0">{i + 1}</span>
                   <p className="text-sm text-text-primary">{concern}</p>
                 </div>
@@ -333,7 +597,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
         {redClauses.length > 0 && (
           <Section title="🔴 High Risk" count={redClauses.length} colorClass="text-risk-red" defaultOpen>
             {redClauses.map(c => (
-              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={toggleClause} />
+              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={() => toggleClause(c.id)} />
             ))}
           </Section>
         )}
@@ -342,7 +606,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
         {yellowClauses.length > 0 && (
           <Section title="⚠ Worth Watching" count={yellowClauses.length} colorClass="text-risk-yellow" defaultOpen>
             {yellowClauses.map(c => (
-              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={toggleClause} />
+              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={() => toggleClause(c.id)} />
             ))}
           </Section>
         )}
@@ -354,7 +618,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
               These protections are commonly found in this type of contract but are absent here.
             </p>
             {sortedGhosts.map(g => (
-              <GhostCard key={g.id} ghost={g} selected={selectedGhosts.has(g.id)} onToggle={toggleGhost} />
+              <GhostCard key={g.id} ghost={g} selected={selectedGhosts.has(g.id)} onToggle={() => toggleGhost(g.id)} />
             ))}
           </Section>
         )}
@@ -363,7 +627,7 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
         {greenClauses.length > 0 && (
           <Section title="✅ Looks Good" count={greenClauses.length} colorClass="text-risk-green" defaultOpen={false}>
             {greenClauses.map(c => (
-              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={toggleClause} />
+              <ClauseCard key={c.id} clause={c} selected={selectedClauses.has(c.id)} onToggle={() => toggleClause(c.id)} />
             ))}
           </Section>
         )}
@@ -372,30 +636,23 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
         {scan.timeline_events.length > 0 && (
           <div className="border-t border-border">
             <button
-              type="button"
               onClick={() => setTimelineOpen(!timelineOpen)}
               className="w-full flex items-center justify-between py-4"
-              aria-expanded={timelineOpen}
-              aria-controls="timeline-panel"
             >
               <h2 className="font-semibold text-lg text-text-primary">
                 📅 Timeline ({scan.timeline_events.length})
               </h2>
               <span className="text-text-muted text-sm">{timelineOpen ? '▲' : '▼'}</span>
             </button>
-            {timelineOpen && <div id="timeline-panel"><TimelineTab events={scan.timeline_events} /></div>}
+            {timelineOpen && <TimelineTab events={scan.timeline_events} />}
           </div>
         )}
 
         <LegalDisclaimer />
       </div>
 
-      {/* Sticky selection bar */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${totalSelected > 0 ? 'translate-y-0' : 'translate-y-full'}`}
-        aria-hidden={totalSelected === 0}
-        inert={totalSelected === 0 || undefined}
-      >
+      {/* Sticky selection bar — slides up when items are selected */}
+      <div className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${totalSelected > 0 ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="bg-bg-document border-t border-border shadow-2xl px-4 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div>
@@ -406,14 +663,12 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
             </div>
             <div className="flex items-center gap-3">
               <button
-                type="button"
                 onClick={() => { setSelectedClauses(new Set()); setSelectedGhosts(new Set()) }}
                 className="text-xs text-text-muted hover:text-text-primary transition-colors"
               >
                 Clear all
               </button>
               <button
-                type="button"
                 onClick={() => setShowEmail(true)}
                 className="px-5 py-2.5 bg-accent text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-colors"
               >
@@ -436,3 +691,24 @@ export function ScanPageClient({ scan }: { scan: ScanResult }) {
     </div>
   )
 }
+```
+
+**Step 3: Verify the build**
+
+Run: `npx tsc --noEmit`
+Expected: No errors
+
+**Step 4: Manual end-to-end test**
+
+1. Navigate to `http://localhost:3000/scan/demo`
+2. Verify: single scroll page, no tabs, sections visible (🔴 High Risk, ⚠ Worth Watching, 👻 Missing Protections, ✅ Looks Good)
+3. Check a box → sticky bar slides up from bottom with count
+4. Check another box → count increments
+5. Click "Clear all" → bar slides down
+6. Re-check boxes → click "✉ Draft Email"
+7. Modal appears with loading animation
+8. ~5 seconds later: email text appears
+9. Copy button works
+10. Clicking outside modal closes it
+11. Click "▼" on any section → it collapses; "▲" expands it
+12. Timeline section expands on click

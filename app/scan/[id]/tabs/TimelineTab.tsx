@@ -65,11 +65,10 @@ function EventNode({ event }: { event: TimelineEvent }) {
           </div>
           <p className="text-xs text-text-muted mb-2">
             {event.date
-              ? new Date(event.date).toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })
+              ? (() => {
+                  const [y, m, d] = event.date.split('-').map(Number)
+                  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                })()
               : event.relative}
           </p>
           {event.notes && <p className="text-xs text-text-secondary">{event.notes}</p>}
