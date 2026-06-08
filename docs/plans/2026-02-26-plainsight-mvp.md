@@ -34,7 +34,7 @@ npm install --save-dev @types/pdf-parse
 **Step 3: Create `.env.local`**
 
 ```env
-ANTHROPIC_API_KEY=your_key_here
+Set `ANTHROPIC_API_KEY` in `.env.local` for local Claude API access.
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 

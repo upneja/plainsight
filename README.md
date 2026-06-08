@@ -58,7 +58,7 @@ cd plainsight
 npm install
 
 # 2. Set your API key
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local
+Create `.env.local` and set `ANTHROPIC_API_KEY` to your local Anthropic API key. Do not commit the file.
 
 # 3. Start the dev server
 npm run dev
