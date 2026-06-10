@@ -40,9 +40,13 @@ export async function analyzeContract(contractText: string, fileName: string): P
         throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
       }
 
+      // The model reliably wraps its JSON in markdown fences despite the
+      // prompt asking for raw JSON — strip them before parsing.
+      const raw = block.text.trim()
+      const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
       let parsed: unknown
       try {
-        parsed = JSON.parse(block.text)
+        parsed = JSON.parse(fenced ? fenced[1] : raw)
       } catch {
         throw Object.assign(new Error('ANALYSIS_INVALID_RESPONSE'), { nonRetryable: true })
       }

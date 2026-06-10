@@ -3,7 +3,9 @@ import { extractText } from '@/lib/extract-text'
 import { analyzeContract } from '@/lib/analyze-contract'
 import { saveScan } from '@/lib/scan-store'
 
-export const maxDuration = 60
+// Non-streaming Claude analysis of a full document can exceed 60s;
+// 300 is the Fluid Compute ceiling on Hobby.
+export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   try {
